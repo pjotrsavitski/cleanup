@@ -1,6 +1,9 @@
 package main
 
 import (
+	"bytes"
+	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -9,44 +12,42 @@ import (
 	"testing"
 )
 
-type PathWithExpectation struct {
-	path        string
-	expectation bool
-	error       string
-}
-
-type LimitWithCount struct {
-	limit int
-	count int
-}
-
+const nonExistentPath = "none/existent/path"
 const dataDirectory = "data"
 const tmpDataDirectory = "tmp_data"
 
 var (
-	data = []PathWithExpectation{
+	pathWithExpectation = []struct {
+		Path        string
+		Expectation bool
+	}{
 		{
-			path:        "none/existent/path",
-			expectation: false,
-			error:       "",
+			nonExistentPath,
+			false,
 		},
 		{
-			path:        filepath.Join(dataDirectory, "directory"),
-			expectation: true,
-			error:       "",
+			filepath.Join(dataDirectory, "directory"),
+			true,
 		},
 		{
-			path:        filepath.Join(dataDirectory, "file"),
-			expectation: false,
-			error:       "not a valid directory",
+			filepath.Join(dataDirectory, "file"),
+			false,
 		},
+	}
+	limitWithCount = []struct {
+		Limit int
+		Count int
+	}{
+		{2, 0},
+		{1, 1},
+		{0, 2},
 	}
 )
 
 func removeTmpData() {
 	err := os.RemoveAll(tmpDataDirectory)
 	if err != nil {
-		log.Fatal("Could not remove tmp_data directory")
+		log.Fatalf("Could not remove %s directory", tmpDataDirectory)
 	}
 }
 
@@ -56,36 +57,40 @@ func recreateTmpData() {
 	err := cmd.Run()
 
 	if err != nil {
-		log.Fatal("Could not copy data directory")
+		log.Fatalf("Could not copy %s directory", dataDirectory)
 	}
+}
+
+func assertLimit(t *testing.T, expectedLimit int) {
+	actualLimit := Limit()
+
+	if expectedLimit != actualLimit {
+		t.Errorf("Expected limit to be %v, got %v", expectedLimit, actualLimit)
+	}
+}
+
+func assertPath(t *testing.T, expectedPath string) {
+	actualPath := Path()
+
+	if expectedPath != actualPath {
+		t.Errorf("Expected path to be %s, got %s", expectedPath, actualPath)
+	}
+}
+
+func TestLimit(t *testing.T) {
+	assertLimit(t, 0)
+}
+
+func TestPath(t *testing.T) {
+	assertPath(t, "")
 }
 
 func TestIsDirectory(t *testing.T) {
-	for _, pwe := range data {
-		isDirectory, _ := isDirectory(pwe.path)
+	for _, single := range pathWithExpectation {
+		isDirectory := isDirectory(single.Path)
 
-		if isDirectory != pwe.expectation {
-			t.Errorf("Failed! Expected %t for path %s, but got %t", pwe.expectation, pwe.path, isDirectory)
-		}
-	}
-}
-
-func TestEnsureDirectory(t *testing.T) {
-	for _, pwe := range data {
-		err := ensureDirectory(pwe.path)
-
-		if pwe.expectation {
-			if err != nil {
-				t.Errorf("Failed! Got error %v", err)
-			}
-		} else {
-			if err == nil {
-				t.Errorf("Failed! Did not get an expected error")
-			} else if len(pwe.error) != 0 {
-				if err.Error() != pwe.error {
-					t.Errorf("Failed! Expected error %s but got %v", pwe.error, err)
-				}
-			}
+		if single.Expectation != isDirectory {
+			t.Errorf("Expected %t for path %s, got %t", single.Expectation, single.Path, isDirectory)
 		}
 	}
 }
@@ -100,30 +105,25 @@ func TestFilterDirectories(t *testing.T) {
 	directories := filterDirectories(files)
 
 	expectedCount := 2
-	gotCount := len(directories)
+	actualCount := len(directories)
 
-	if gotCount != expectedCount {
-		t.Errorf("Failed! got %v directories and expected %v", gotCount, expectedCount)
+	if expectedCount != actualCount {
+		t.Errorf("Expected %v directories, got %v", expectedCount, actualCount)
 	}
 }
 
 func TestHandleDirectory(t *testing.T) {
 	defer removeTmpData()
 
-	data := []LimitWithCount{
-		{2, 0},
-		{1, 1},
-		{0, 2},
-	}
-	for _, single := range data {
+	for _, single := range limitWithCount {
 		recreateTmpData()
-		count, _ := handleDirectory(tmpDataDirectory, single.limit)
+		count, _ := handleDirectory(tmpDataDirectory, single.Limit)
 
-		if count != single.count {
-			t.Errorf("Failed! Got %d directories removed and expected %d", count, single.count)
+		if count != single.Count {
+			t.Errorf("Expected %v directories to be removed, got %v", single.Count, count)
 		}
 
-		if single.limit == 1 {
+		if single.Limit == 1 {
 			files, err := ioutil.ReadDir(tmpDataDirectory)
 
 			if err != nil {
@@ -132,9 +132,85 @@ func TestHandleDirectory(t *testing.T) {
 
 			directories := filterDirectories(files)
 
-			if directories[0].Name() != "directory1" {
-				t.Errorf("Failed! Got %s and expected %s", directories[0].Name(), "directory1")
+			expectedName := "directory1"
+			actualName := directories[0].Name()
+
+			if actualName != expectedName {
+				t.Errorf("Expected %s, got %s", expectedName, actualName)
 			}
+		}
+	}
+}
+
+func TestRunCommand(t *testing.T) {
+	defer removeTmpData()
+	recreateTmpData()
+
+	cases := []struct {
+		Path          string
+		Limit         int
+		ExpectedText  string
+		ExpectedError string
+	}{
+		{"none/existent/path", 2, "", "Not a directory or path \"none/existent/path\" does not exist!"},
+		{tmpDataDirectory, 5, "", ""},
+		{tmpDataDirectory, 1, "Removed a single directory.", ""},
+		{tmpDataDirectory, 0, "Removed 2 directories.", ""},
+	}
+
+	for _, c := range cases {
+		recreateTmpData()
+
+		text, err := runCommand(c.Path, c.Limit)
+
+		if err != nil {
+
+		}
+
+		if c.ExpectedText != text {
+			t.Errorf("Wrong output for case: %v, expected %v, got: %v", c, c.ExpectedText, text)
+		}
+
+		if c.ExpectedError != "" && c.ExpectedError != err.Error() {
+			t.Errorf("Wrong error for case: %v, expected %v, got: %v", c, c.ExpectedError, err)
+		}
+	}
+}
+
+func TestRealMain(t *testing.T) {
+	defer removeTmpData()
+	recreateTmpData()
+
+	oldArgs := os.Args
+	defer func() { os.Args = oldArgs }()
+
+	cases := []struct {
+		Name           string
+		Args           []string
+		ExpectedCode   int
+		ExpectedOutput string
+	}{
+		{"limit set to 0 and tmp_data", []string{"-l", "0", tmpDataDirectory}, 0, "Removed 2 directories.\n"},
+		{"limit set to default and tmp_data", []string{tmpDataDirectory}, 0, ""},
+		{"limit set to default and wrong dir", []string{nonExistentPath}, 1, fmt.Sprintf("Not a directory or path \"%s\" does not exist!", nonExistentPath)},
+		{"limit set to default and no dir", []string{}, 0, "Usage: cleanup path/to/dir -l 5\n  -l int\n    \tLimit of the latest directories to keep (default 5)\n"},
+	}
+
+	for _, c := range cases {
+		flag.CommandLine = flag.NewFlagSet(c.Name, flag.ExitOnError)
+		os.Args = os.Args[:1]
+		os.Args = append(os.Args, c.Args...)
+
+		var buf bytes.Buffer
+
+		actualCode := realMain(&buf)
+		if c.ExpectedCode != actualCode {
+			t.Errorf("Wrong exit code for args: %v, expected: %v, got: %v", c.Args, c.ExpectedCode, actualCode)
+		}
+
+		actualOutput := buf.String()
+		if c.ExpectedOutput != actualOutput {
+			t.Errorf("Wrong output for args: %v, expected %v, got: %v", c.Args, c.ExpectedOutput, actualOutput)
 		}
 	}
 }

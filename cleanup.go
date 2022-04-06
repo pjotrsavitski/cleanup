@@ -4,37 +4,34 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"io/fs"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 )
 
-func isDirectory(path string) (bool, error) {
+var (
+	limit int
+)
+
+func Limit() int {
+	return limit
+}
+
+func Path() string {
+	return flag.Arg(0)
+}
+
+func isDirectory(path string) bool {
 	fileInfo, err := os.Stat(path)
 
 	if err != nil {
-		return false, err
+		return false
 	}
 
-	return fileInfo.IsDir(), err
-}
-
-func ensureDirectory(path string) error {
-	isDirectory, err := isDirectory(path)
-
-	if err != nil {
-		return err
-	}
-
-	if !isDirectory {
-		return errors.New("not a valid directory")
-	}
-
-	return nil
+	return fileInfo.IsDir()
 }
 
 func filterDirectories(files []fs.FileInfo) []fs.FileInfo {
@@ -80,49 +77,67 @@ func handleDirectory(path string, limit int) (int, error) {
 	return removed, nil
 }
 
-func main() {
-	var (
-		limit int
-		path  string
-	)
-
-	flag.IntVar(&limit, "l", 5, "Limit of latest directories to keep. Default value is 5.")
-
-	flag.Usage = func() {
-		fmt.Println("Usage: cleanup /path/to/dir -l 5")
-		flag.PrintDefaults()
-	}
-
-	flag.Parse()
-
-	if len(os.Args) <= 1 {
-		flag.Usage()
-		return
-	}
-
-	path = os.Args[1]
-
-	if strings.TrimSpace(path) == "" {
-		log.Fatal("Directory path is required!")
-	}
-
-	err := ensureDirectory(path)
-
-	if err != nil {
-		log.Fatal(err)
+func runCommand(path string, limit int) (string, error) {
+	if !isDirectory(path) {
+		return "", errors.New(fmt.Sprintf("Not a directory or path \"%s\" does not exist!", path))
 	}
 
 	removed, err := handleDirectory(path, limit)
 
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 
 	if removed > 0 {
-		if removed == 0 {
-			fmt.Println("Removed a single directory.")
+		if removed == 1 {
+			return fmt.Sprint("Removed a single directory."), nil
 		} else {
-			fmt.Println("Removed", removed, "directories.")
+			return fmt.Sprintf("Removed %d directories.", removed), nil
 		}
 	}
+
+	return "", nil
+}
+
+func realMain(out io.Writer) int {
+	flag.IntVar(&limit, "l", 5, "Limit of the latest directories to keep")
+
+	flag.Usage = func() {
+		_, err := fmt.Fprintln(out, "Usage: cleanup path/to/dir -l 5")
+		if err != nil {
+			return
+		}
+		flag.CommandLine.SetOutput(out)
+		flag.PrintDefaults()
+	}
+
+	flag.Parse()
+
+	if flag.NArg() < 1 {
+		flag.Usage()
+		return 0
+	}
+
+	text, err := runCommand(Path(), Limit())
+
+	if err != nil {
+		_, err := fmt.Fprint(out, err)
+		if err != nil {
+			return 1
+		}
+		return 1
+	}
+
+	if text != "" {
+		_, err := fmt.Fprintln(out, text)
+		if err != nil {
+			return 1
+		}
+	}
+
+	return 0
+}
+
+func main() {
+	os.Exit(realMain(os.Stdout))
 }
