@@ -12,8 +12,13 @@ import (
 	"sort"
 )
 
+const (
+	version = "1.0.0"
+)
+
 var (
-	limit int
+	limit          int
+	displayVersion bool
 )
 
 func Limit() int {
@@ -100,6 +105,7 @@ func runCommand(path string, limit int) (string, error) {
 }
 
 func realMain(out io.Writer) int {
+	flag.BoolVar(&displayVersion, "v", false, "Release version of the utility script")
 	flag.IntVar(&limit, "l", 5, "Limit of the latest directories to keep")
 
 	flag.Usage = func() {
@@ -112,6 +118,11 @@ func realMain(out io.Writer) int {
 	}
 
 	flag.Parse()
+
+	if displayVersion {
+		fmt.Fprintln(out, "Cleanup utility version:", version)
+		return 0
+	}
 
 	if flag.NArg() < 1 {
 		flag.Usage()

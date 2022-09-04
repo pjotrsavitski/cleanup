@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"testing"
 )
@@ -193,7 +194,12 @@ func TestRealMain(t *testing.T) {
 		{"limit set to 0 and tmp_data", []string{"-l", "0", tmpDataDirectory}, 0, "Removed 2 directories.\n"},
 		{"limit set to default and tmp_data", []string{tmpDataDirectory}, 0, ""},
 		{"limit set to default and wrong dir", []string{nonExistentPath}, 1, fmt.Sprintf("Not a directory or path \"%s\" does not exist!", nonExistentPath)},
-		{"limit set to default and no dir", []string{}, 0, "Usage: cleanup path/to/dir -l 5\n  -l int\n    \tLimit of the latest directories to keep (default 5)\n"},
+		{"limit set to default and file", []string{filepath.Join(tmpDataDirectory, "file")}, 1, fmt.Sprintf("Not a directory or path \"%s\" does not exist!", path.Join(tmpDataDirectory, "file"))},
+		{"limit set to default and no dir", []string{}, 0, "Usage: cleanup path/to/dir -l 5\n  -l int\n    \tLimit of the latest directories to keep (default 5)\n  -v\tRelease version of the utility script\n"},
+		{"version flag set", []string{"-v"}, 0, "Cleanup utility version: " + version + "\n"},
+		{"version flag set", []string{"--v"}, 0, "Cleanup utility version: " + version + "\n"},
+		{"version flag set to true", []string{"-v", "false"}, 0, "Cleanup utility version: " + version + "\n"},
+		{"version flag set to true", []string{"--v", "false"}, 0, "Cleanup utility version: " + version + "\n"},
 	}
 
 	for _, c := range cases {
