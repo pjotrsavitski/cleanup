@@ -6,7 +6,7 @@ Modification time will be used when determining the sort order of subdirectories
 
 ## Usage examples
 
-* `cleanup <PATH-TO-DIRECTORY> -l 5` keeps up to 5 latest subdirectories of the path provided
+* `cleanup -l 5 <PATH-TO-DIRECTORY>` keeps up to 5 latest subdirectories of the path provided
 * `cleanup <PATH-TO-DIRECTORY>` keeps up to 5 (default value) subdirectories of the path provided
 * `cleanup -v` displays the version information of the utility script
 * `cleanup` - displays help text of the utility script

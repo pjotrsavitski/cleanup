@@ -195,7 +195,7 @@ func TestRealMain(t *testing.T) {
 		{"limit set to default and tmp_data", []string{tmpDataDirectory}, 0, ""},
 		{"limit set to default and wrong dir", []string{nonExistentPath}, 1, fmt.Sprintf("Not a directory or path \"%s\" does not exist!", nonExistentPath)},
 		{"limit set to default and file", []string{filepath.Join(tmpDataDirectory, "file")}, 1, fmt.Sprintf("Not a directory or path \"%s\" does not exist!", path.Join(tmpDataDirectory, "file"))},
-		{"limit set to default and no dir", []string{}, 0, "Usage: cleanup path/to/dir -l 5\n  -l int\n    \tLimit of the latest directories to keep (default 5)\n  -v\tRelease version of the utility script\n"},
+		{"limit set to default and no dir", []string{}, 0, "Usage: cleanup -l 5 path/to/dir\n  -l int\n    \tLimit of the latest directories to keep (default 5)\n  -v\tRelease version of the utility script\n"},
 		{"version flag set", []string{"-v"}, 0, "Cleanup utility version: " + version + "\n"},
 		{"version flag set", []string{"--v"}, 0, "Cleanup utility version: " + version + "\n"},
 		{"version flag set to true", []string{"-v", "false"}, 0, "Cleanup utility version: " + version + "\n"},

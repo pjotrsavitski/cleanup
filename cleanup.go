@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	version = "1.0.0"
+	version = "1.0.1"
 )
 
 var (
@@ -109,7 +109,7 @@ func realMain(out io.Writer) int {
 	flag.IntVar(&limit, "l", 5, "Limit of the latest directories to keep")
 
 	flag.Usage = func() {
-		_, err := fmt.Fprintln(out, "Usage: cleanup path/to/dir -l 5")
+		_, err := fmt.Fprintln(out, "Usage: cleanup -l 5 path/to/dir")
 		if err != nil {
 			return
 		}
